@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moulding Plate Analyzer Pro - High Precision QC</title>
+    <style>
+        :root { 
+            --primary: #6366f1; 
+            --success: #22c55e; 
+            --dark-bg: #0b0f1a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --accent: #38bdf8;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+        }
+        
+        body { 
+            font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+            background-color: var(--dark-bg); 
+            margin: 0; 
+            padding: 20px; 
+            color: var(--text-main);
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* --- ANIMATED BACKGROUND --- */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: 
+                radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.05) 0%, transparent 50%),
+                linear-gradient(rgba(56, 189, 248, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(56, 189, 248, 0.03) 1px, transparent 1px);
+            background-size: 100% 100%, 40px 40px, 40px 40px;
+            z-index: -1;
+            animation: bgMove 20s linear infinite;
+        }
+
+        @keyframes bgMove {
+            from { background-position: 0 0, 0 0, 0 0; }
+            to { background-position: 0 0, 40px 40px, 40px 40px; }
+        }
+
+        /* --- TITLE ANIMATION --- */
+        @keyframes titleScan {
+            0%, 100% { background-position: -100%; }
+            50% { background-position: 200%; }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes glow {
+            0%, 100% { text-shadow: 0 0 10px rgba(56, 189, 248, 0.3); }
+            50% { text-shadow: 0 0 25px rgba(56, 189, 248, 0.6); }
+        }
+
+        .wrapper { 
+            max-width: 1200px; 
+            margin: auto; 
+            animation: fadeIn 0.8s ease-out;
+            position: relative;
+        }
+
+        .header { 
+            text-align: center; 
+            margin-bottom: 40px; 
+        }
+
+        .header h1 { 
+            margin: 0; 
+            font-size: 2.8rem; 
+            background: linear-gradient(90deg, #fff, var(--accent), #fff);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 800;
+            animation: titleScan 4s linear infinite;
+            letter-spacing: -1px;
+            filter: drop-shadow(0 0 15px rgba(56, 189, 248, 0.2));
+        }
+        
+        .header p { 
+            color: var(--text-dim); 
+            margin-top: 10px; 
+            font-size: 1.1rem; 
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: 300;
+        }
+
+        #status-bar { 
+            padding: 14px; 
+            border-radius: 12px; 
+            margin-bottom: 25px; 
+            text-align: center; 
+            font-weight: 600; 
+            font-size: 0.9rem;
+            backdrop-filter: blur(10px);
+            transition: 0.4s;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .status-loading { background: rgba(245, 158, 11, 0.1); color: #fbbf24; border-color: rgba(245, 158, 11, 0.2) !important; }
+        .status-ready { background: rgba(34, 197, 94, 0.1); color: #4ade80; border-color: rgba(34, 197, 94, 0.2) !important; }
+
+        .drop-zone { 
+            border: 2px dashed rgba(56, 189, 248, 0.3); 
+            padding: 50px; 
+            text-align: center; 
+            border-radius: 20px; 
+            cursor: pointer; 
+            background: var(--card-bg); 
+            margin-bottom: 30px; 
+            transition: 0.3s; 
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(5px);
+        }
+
+        .drop-zone:hover { 
+            border-color: var(--accent); 
+            background: rgba(30, 41, 59, 0.9);
+            transform: scale(1.01);
+            box-shadow: 0 0 30px rgba(56, 189, 248, 0.1);
+        }
+
+        .main-layout { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); 
+            gap: 25px; 
+            margin-bottom: 30px;
+        }
+
+        .canvas-container { 
+            background: #000; 
+            padding: 15px; 
+            border-radius: 18px; 
+            border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+            transition: 0.3s;
+        }
+
+        .canvas-container:hover { transform: translateY(-5px); border-color: rgba(56, 189, 248, 0.3); }
+
+        .canvas-label {
+            color: var(--accent);
+            font-size: 0.75rem;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+        }
+
+        canvas { width: 100%; border-radius: 8px; }
+
+        .dashboard { 
+            background: var(--card-bg); 
+            padding: 40px; 
+            border-radius: 24px; 
+            display: flex; 
+            justify-content: space-around; 
+            align-items: center; 
+            flex-wrap: wrap;
+            gap: 30px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .stat-box { text-align: center; }
+        .stat-label { font-size: 0.85rem; color: var(--text-dim); font-weight: 600; letter-spacing: 1px; }
+        .stat-value { font-size: 5rem; font-weight: 800; color: var(--accent); animation: glow 3s infinite; }
+
+        .btn-reset {
+            background: rgba(255,255,255,0.05);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 12px 25px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.3s;
+        }
+        
+        .btn-reset:hover { background: #ef4444; border-color: #ef4444; }
+
+        .instructions {
+            background: rgba(56, 189, 248, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 30px;
+            border: 1px solid rgba(56, 189, 248, 0.1);
+        }
+
+        .instructions h3 { color: var(--accent); margin-top: 0; font-size: 1rem; }
+        .instructions ul { margin: 0; padding-left: 20px; color: var(--text-dim); font-size: 0.9rem; }
+        .instructions li { margin-bottom: 8px; }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            font-weight: 500;
+            letter-spacing: 1px;
+        }
+
+        .footer span { color: var(--accent); font-weight: 700; }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <div class="header">
+        <h1>Moulding Plate Analyzer</h1>
+        <p>Sistem Computer Vision untuk Identifikasi lubang Plat Moulding meises</p>
+    </div>
+
+    <div id="status-bar" class="status-loading">INITIALIZING VISION ENGINE...</div>
+
+    <div class="drop-zone" id="drop-zone">
+        <svg style="width:48px;height:48px;color:var(--accent);margin-bottom:15px" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+        </svg>
+        <p style="margin:0;font-weight:600">Drop plate image here or click to browse</p>
+        <p style="font-size:0.8rem;color:var(--text-dim);margin-top:5px">Supports JPG, PNG, WEBP</p>
+        <input type="file" id="file-input" accept="image/*" hidden>
+    </div>
+
+    <div class="main-layout">
+        <div class="canvas-container">
+            <span class="canvas-label">● ORIGINAL FEED</span>
+            <canvas id="canvas-input"></canvas>
+        </div>
+        <div class="canvas-container">
+            <span class="canvas-label" style="color:#4ade80">● VISION ANALYSIS</span>
+            <canvas id="canvas-output"></canvas>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <div class="stat-box">
+            <span class="stat-label">TOTAL HOLES DETECTED</span>
+            <span class="stat-value" id="count-display">0</span>
+        </div>
+        <div class="stat-box" style="border-left: 1px solid rgba(255,255,255,0.1); padding-left: 30px;">
+            <div id="analysis-status" style="color: #4ade80; font-weight: 700; margin-bottom: 15px; letter-spacing: 1px;">SYSTEM READY</div>
+            <button class="btn-reset" onclick="location.reload()">REFRESH ENGINE</button>
+        </div>
+    </div>
+
+    <div class="instructions">
+        <h3>⚠️ Perhatian: Cara Mengambil Gambar</h3>
+        <ul>
+            <li><strong>Posisi Tegak Lurus:</strong> Ambil foto tepat dari atas plat (90°). Jangan miring agar lubang tidak terlihat lonjong.</li>
+            <li><strong>Pencahayaan Merata:</strong> Gunakan cahaya ruangan yang cukup. Hindari penggunaan <i>flash</i> kamera yang memicu pantulan (glare) pada besi.</li>
+            <li><strong>Fokus Tajam:</strong> Pastikan kamera fokus pada tekstur lubang. Gambar yang blur akan menurunkan akurasi hitungan.</li>
+            <li><strong>Latar Belakang:</strong> Gunakan alas berwarna gelap atau kontras di bawah plat jika memungkinkan untuk mempertegas lubang.</li>
+        </ul>
+    </div>
+
+    <div class="footer">
+        System By: <span>Arya Rangga</span> &copy; 2026
+    </div>
+</div>
+
+<script>
+    var Module = {
+        onRuntimeInitialized: function() {
+            const bar = document.getElementById('status-bar');
+            bar.innerText = "VISION ENGINE ACTIVE - WASM ENABLED";
+            bar.className = "status-ready";
+        }
+    };
+</script>
+<script async src="https://docs.opencv.org/4.5.4/opencv.js"></script>
+
+<script>
+    const fileInput = document.getElementById('file-input');
+    const dropZone = document.getElementById('drop-zone');
+    const countDisplay = document.getElementById('count-display');
+    const canvasInput = document.getElementById('canvas-input');
+    const canvasOutput = document.getElementById('canvas-output');
+
+    dropZone.onclick = () => fileInput.click();
+    
+    fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) processFile(file);
+    };
+
+    dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.borderColor = "var(--accent)"; };
+    dropZone.ondragleave = () => { dropZone.style.borderColor = "rgba(255,255,255,0.2)"; };
+    dropZone.ondrop = (e) => {
+        e.preventDefault();
+        const file = e.dataTransfer.files[0];
+        if (file) processFile(file);
+    };
+
+    function processFile(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const maxDim = 1000;
+                let scale = Math.min(maxDim / img.width, maxDim / img.height, 1);
+                
+                canvasInput.width = img.width * scale;
+                canvasInput.height = img.height * scale;
+                canvasOutput.width = canvasInput.width;
+                canvasOutput.height = canvasInput.height;
+
+                const ctx = canvasInput.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvasInput.width, canvasInput.height);
+                
+                document.getElementById('analysis-status').innerText = "ANALYZING...";
+                setTimeout(runDetection, 300);
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function runDetection() {
+        if (!cv.imread) return;
+
+        let src = cv.imread(canvasInput);
+        let dst = src.clone();
+        let gray = new cv.Mat();
+        let thresh = new cv.Mat();
+        let contours = new cv.MatVector();
+        let hierarchy = new cv.Mat();
+
+        cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
+
+        cv.adaptiveThreshold(gray, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 7, 4);
+
+        let M = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(2, 2));
+        cv.morphologyEx(thresh, thresh, cv.MORPH_OPEN, M);
+
+        cv.findContours(thresh, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+        let holeCount = 0;
+        for (let i = 0; i < contours.size(); ++i) {
+            let cnt = contours.get(i);
+            let area = cv.contourArea(cnt);
+            let rect = cv.boundingRect(cnt);
+            let aspectRatio = rect.width / rect.height;
+
+            if (area > 8 && area < 600) {
+                if (aspectRatio > 0.5 && aspectRatio < 1.9) {
+                    holeCount++;
+                    let center = new cv.Point(rect.x + rect.width / 2, rect.y + rect.height / 2);
+                    cv.circle(dst, center, rect.width / 2, [56, 189, 248, 255], 1.5);
+                    cv.putText(dst, holeCount.toString(), {x: rect.x, y: rect.y - 3}, 
+                               cv.FONT_HERSHEY_SIMPLEX, 0.35, [255, 255, 255, 255], 1);
+                }
+            }
+        }
+
+        cv.imshow(canvasOutput, dst);
+        countDisplay.innerText = holeCount;
+        document.getElementById('analysis-status').innerText = "ANALYSIS COMPLETE";
+
+        src.delete(); dst.delete(); gray.delete(); thresh.delete(); 
+        contours.delete(); hierarchy.delete(); M.delete();
+    }
+</script>
+</body>
+</html>
