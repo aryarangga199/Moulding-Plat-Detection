@@ -44,7 +44,6 @@
             to { background-position: 0 0, 40px 40px, 40px 40px; }
         }
 
-        /* --- TITLE ANIMATION --- */
         @keyframes titleScan {
             0%, 100% { background-position: -100%; }
             50% { background-position: 200%; }
@@ -61,7 +60,7 @@
         }
 
         .wrapper { 
-            max-width: 1200px; 
+            max-width: 1400px; 
             margin: auto; 
             animation: fadeIn 0.8s ease-out;
             position: relative;
@@ -132,8 +131,8 @@
 
         .main-layout { 
             display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); 
-            gap: 25px; 
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); 
+            gap: 20px; 
             margin-bottom: 30px;
         }
 
@@ -240,8 +239,12 @@
             <canvas id="canvas-input"></canvas>
         </div>
         <div class="canvas-container">
-            <span class="canvas-label" style="color:#4ade80">● VISION ANALYSIS</span>
-            <canvas id="canvas-output"></canvas>
+            <span class="canvas-label" style="color:#22c55e">● VISION ANALYSIS (CLEAN)</span>
+            <canvas id="canvas-output-clean"></canvas>
+        </div>
+        <div class="canvas-container">
+            <span class="canvas-label" style="color:#38bdf8">● VISION ANALYSIS (NUMBERED)</span>
+            <canvas id="canvas-output-numbered"></canvas>
         </div>
     </div>
 
@@ -287,7 +290,8 @@
     const dropZone = document.getElementById('drop-zone');
     const countDisplay = document.getElementById('count-display');
     const canvasInput = document.getElementById('canvas-input');
-    const canvasOutput = document.getElementById('canvas-output');
+    const canvasClean = document.getElementById('canvas-output-clean');
+    const canvasNumbered = document.getElementById('canvas-output-numbered');
 
     dropZone.onclick = () => fileInput.click();
     
@@ -314,8 +318,10 @@
                 
                 canvasInput.width = img.width * scale;
                 canvasInput.height = img.height * scale;
-                canvasOutput.width = canvasInput.width;
-                canvasOutput.height = canvasInput.height;
+                canvasClean.width = canvasInput.width;
+                canvasClean.height = canvasInput.height;
+                canvasNumbered.width = canvasInput.width;
+                canvasNumbered.height = canvasInput.height;
 
                 const ctx = canvasInput.getContext('2d');
                 ctx.drawImage(img, 0, 0, canvasInput.width, canvasInput.height);
@@ -332,14 +338,14 @@
         if (!cv.imread) return;
 
         let src = cv.imread(canvasInput);
-        let dst = src.clone();
+        let dstClean = src.clone();
+        let dstNumbered = src.clone();
         let gray = new cv.Mat();
         let thresh = new cv.Mat();
         let contours = new cv.MatVector();
         let hierarchy = new cv.Mat();
 
         cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY, 0);
-
         cv.adaptiveThreshold(gray, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 7, 4);
 
         let M = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(2, 2));
@@ -358,18 +364,27 @@
                 if (aspectRatio > 0.5 && aspectRatio < 1.9) {
                     holeCount++;
                     let center = new cv.Point(rect.x + rect.width / 2, rect.y + rect.height / 2);
-                    cv.circle(dst, center, rect.width / 2, [56, 189, 248, 255], 1.5);
-                    cv.putText(dst, holeCount.toString(), {x: rect.x, y: rect.y - 3}, 
+                    
+                    // Gambar lingkaran di kedua output
+                    cv.circle(dstClean, center, rect.width / 2, [34, 197, 94, 255], 1.5);
+                    cv.circle(dstNumbered, center, rect.width / 2, [56, 189, 248, 255], 1.5);
+                    
+                    // Hanya tambahkan teks di dstNumbered
+                    cv.putText(dstNumbered, holeCount.toString(), {x: rect.x, y: rect.y - 3}, 
                                cv.FONT_HERSHEY_SIMPLEX, 0.35, [255, 255, 255, 255], 1);
                 }
             }
         }
 
-        cv.imshow(canvasOutput, dst);
+        cv.imshow(canvasClean, dstClean);
+        cv.imshow(canvasNumbered, dstNumbered);
+        
         countDisplay.innerText = holeCount;
         document.getElementById('analysis-status').innerText = "ANALYSIS COMPLETE";
 
-        src.delete(); dst.delete(); gray.delete(); thresh.delete(); 
+        // Memory cleanup
+        src.delete(); dstClean.delete(); dstNumbered.delete(); 
+        gray.delete(); thresh.delete(); 
         contours.delete(); hierarchy.delete(); M.delete();
     }
 </script>
