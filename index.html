@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Moulding Plate Analyzer Pro - High Precision QC</title>
+    <title>Moulding Plate Analyzer - System By: Arya Rangga</title>
     <style>
         :root { 
             --primary: #6366f1; 
@@ -139,6 +139,7 @@
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
+            align-items: center;
         }
 
         .control-group {
@@ -173,6 +174,25 @@
             border-radius: 50%;
             cursor: pointer;
             box-shadow: 0 0 10px var(--accent);
+        }
+
+        /* Original View Toggle */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255,255,255,0.05);
+            padding: 10px 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            cursor: pointer;
+        }
+
+        .toggle-container input {
+            cursor: pointer;
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent);
         }
 
         .main-layout { 
@@ -309,11 +329,18 @@
             <label>Vibrance <span id="val-vibrance">0</span></label>
             <input type="range" id="slider-vibrance" min="-100" max="100" value="0">
         </div>
+        <div class="control-group">
+            <label>View Mode</label>
+            <label class="toggle-container">
+                <input type="checkbox" id="check-original">
+                <span style="color: white; text-transform: none;">Show Original Image</span>
+            </label>
+        </div>
     </div>
 
     <div class="main-layout">
         <div class="canvas-container">
-            <span class="canvas-label">● ORIGINAL FEED</span>
+            <span class="canvas-label" id="label-input">● ORIGINAL FEED</span>
             <canvas id="canvas-input"></canvas>
         </div>
         <div class="canvas-container">
@@ -376,15 +403,15 @@
     const canvasClean = document.getElementById('canvas-output-clean');
     const canvasNumbered = document.getElementById('canvas-output-numbered');
     const btnUndo = document.getElementById('btn-undo');
-    
-    // Sliders
+    const checkOriginal = document.getElementById('check-original');
+    const labelInput = document.getElementById('label-input');
     const sBright = document.getElementById('slider-bright');
     const sContrast = document.getElementById('slider-contrast');
     const sVibrance = document.getElementById('slider-vibrance');
     
     let originalImage = null;
-    let detectedHoles = []; // Simpan koordinat lubang
-    let undoStack = []; // Stack untuk menyimpan kondisi sebelum dihapus
+    let detectedHoles = []; 
+    let undoStack = []; 
 
     dropZone.onclick = () => fileInput.click();
     
@@ -401,7 +428,10 @@
         if (file) processFile(file);
     };
 
-    // Update listeners for sliders
+    checkOriginal.onchange = () => {
+        if (originalImage) applyFiltersAndRun();
+    };
+
     [sBright, sContrast, sVibrance].forEach(slider => {
         slider.oninput = () => {
             document.getElementById('val-bright').innerText = sBright.value;
@@ -411,7 +441,6 @@
         };
     });
 
-    // FITUR HAPUS: Click event pada canvas biru
     canvasNumbered.addEventListener('mousedown', function(e) {
         if (detectedHoles.length === 0) return;
 
@@ -431,16 +460,14 @@
         });
 
         if (holesToKeep.length !== initialCount) {
-            // Simpan kondisi sebelumnya ke stack sebelum diubah
             undoStack.push([...detectedHoles]);
             btnUndo.disabled = false;
             
             detectedHoles = holesToKeep;
-            redrawResults(); // Gambar ulang tanpa deteksi yang dihapus
+            redrawResults();
         }
     });
 
-    // FITUR UNDO
     function undoAction() {
         if (undoStack.length > 0) {
             detectedHoles = undoStack.pop();
@@ -478,9 +505,18 @@
 
         const ctx = canvasInput.getContext('2d', { willReadFrequently: true });
         
-        ctx.filter = `brightness(${100 + parseInt(sBright.value)}%) 
-                      contrast(${100 + parseInt(sContrast.value)}%) 
-                      saturate(${100 + parseInt(sVibrance.value)}%)`;
+        // Cek apakah original view aktif
+        if (checkOriginal.checked) {
+            ctx.filter = 'none';
+            labelInput.innerText = "● ORIGINAL VIEW (UNFILTERED)";
+            labelInput.style.color = "#ff4757";
+        } else {
+            ctx.filter = `brightness(${100 + parseInt(sBright.value)}%) 
+                          contrast(${100 + parseInt(sContrast.value)}%) 
+                          saturate(${100 + parseInt(sVibrance.value)}%)`;
+            labelInput.innerText = "● PROCESSED FEED";
+            labelInput.style.color = "var(--accent)";
+        }
         
         ctx.drawImage(img, 0, 0, canvasInput.width, canvasInput.height);
         
@@ -490,8 +526,21 @@
 
     function runDetection() {
         if (!cv.imread) return;
+        let src;
+        if (checkOriginal.checked) {
+            let offscreenCanvas = document.createElement('canvas');
+            offscreenCanvas.width = canvasInput.width;
+            offscreenCanvas.height = canvasInput.height;
+            let octx = offscreenCanvas.getContext('2d');
+            octx.filter = `brightness(${100 + parseInt(sBright.value)}%) 
+                           contrast(${100 + parseInt(sContrast.value)}%) 
+                           saturate(${100 + parseInt(sVibrance.value)}%)`;
+            octx.drawImage(originalImage, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
+            src = cv.imread(offscreenCanvas);
+        } else {
+            src = cv.imread(canvasInput);
+        }
 
-        let src = cv.imread(canvasInput);
         let gray = new cv.Mat();
         let thresh = new cv.Mat();
         let contours = new cv.MatVector();
@@ -527,7 +576,6 @@
 
         redrawResults();
 
-        // Cleanup
         src.delete(); gray.delete(); thresh.delete(); 
         contours.delete(); hierarchy.delete(); M.delete();
     }
@@ -538,12 +586,8 @@
         let dstNumbered = src.clone();
 
         detectedHoles.forEach((hole, index) => {
-            let center = new cv.Point(hole.x, hole.y);
-            
-            // Gambar di canvas clean (hijau)
+            let center = new cv.Point(hole.x, hole.y);          
             cv.circle(dstClean, center, hole.r, [34, 197, 94, 255], 1.5);
-            
-            // Gambar di canvas numbered (biru)
             cv.circle(dstNumbered, center, hole.r, [56, 189, 248, 255], 1.5);
             cv.putText(dstNumbered, (index + 1).toString(), {x: hole.bx, y: hole.by - 3}, 
                        cv.FONT_HERSHEY_SIMPLEX, 0.35, [255, 255, 255, 255], 1);
