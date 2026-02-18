@@ -115,7 +115,7 @@
             border-radius: 20px; 
             cursor: pointer; 
             background: var(--card-bg); 
-            margin-bottom: 30px; 
+            margin-bottom: 20px; 
             transition: 0.3s; 
             position: relative;
             overflow: hidden;
@@ -127,6 +127,52 @@
             background: rgba(30, 41, 59, 0.9);
             transform: scale(1.01);
             box-shadow: 0 0 30px rgba(56, 189, 248, 0.1);
+        }
+
+        /* --- CONTROL SLIDERS --- */
+        .image-controls {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 20px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255,255,255,0.1);
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .control-group label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--accent);
+            text-transform: uppercase;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: rgba(255,255,255,0.1);
+            height: 6px;
+            border-radius: 5px;
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--accent);
         }
 
         .main-layout { 
@@ -158,6 +204,9 @@
         }
 
         canvas { width: 100%; border-radius: 8px; }
+        
+        /* Fitur Hapus Cursor */
+        #canvas-output-numbered { cursor: crosshair; }
 
         .dashboard { 
             background: var(--card-bg); 
@@ -188,6 +237,20 @@
         }
         
         .btn-reset:hover { background: #ef4444; border-color: #ef4444; }
+
+        .btn-undo {
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            padding: 12px 25px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: 0.3s;
+            margin-right: 10px;
+        }
+        .btn-undo:hover { background: var(--accent); color: white; }
+        .btn-undo:disabled { opacity: 0.3; cursor: not-allowed; }
 
         .instructions {
             background: rgba(56, 189, 248, 0.05);
@@ -233,6 +296,21 @@
         <input type="file" id="file-input" accept="image/*" hidden>
     </div>
 
+    <div class="image-controls">
+        <div class="control-group">
+            <label>Brightness <span id="val-bright">0</span></label>
+            <input type="range" id="slider-bright" min="-100" max="100" value="0">
+        </div>
+        <div class="control-group">
+            <label>Contrast <span id="val-contrast">0</span></label>
+            <input type="range" id="slider-contrast" min="-100" max="100" value="0">
+        </div>
+        <div class="control-group">
+            <label>Vibrance <span id="val-vibrance">0</span></label>
+            <input type="range" id="slider-vibrance" min="-100" max="100" value="0">
+        </div>
+    </div>
+
     <div class="main-layout">
         <div class="canvas-container">
             <span class="canvas-label">● ORIGINAL FEED</span>
@@ -255,7 +333,11 @@
         </div>
         <div class="stat-box" style="border-left: 1px solid rgba(255,255,255,0.1); padding-left: 30px;">
             <div id="analysis-status" style="color: #4ade80; font-weight: 700; margin-bottom: 15px; letter-spacing: 1px;">SYSTEM READY</div>
-            <button class="btn-reset" onclick="location.reload()">REFRESH ENGINE</button>
+            <p style="font-size: 0.7rem; color: var(--text-dim); margin-bottom: 10px;">Klik titik pada layar biru untuk hapus deteksi</p>
+            <div style="display: flex; align-items: center;">
+                <button id="btn-undo" class="btn-undo" onclick="undoAction()" disabled>UNDO CORRECTION</button>
+                <button class="btn-reset" onclick="location.reload()">REFRESH ENGINE</button>
+            </div>
         </div>
     </div>
 
@@ -266,6 +348,7 @@
             <li><strong>Pencahayaan Merata:</strong> Gunakan cahaya ruangan yang cukup. Hindari penggunaan <i>flash</i> kamera yang memicu pantulan (glare) pada besi.</li>
             <li><strong>Fokus Tajam:</strong> Pastikan kamera fokus pada tekstur lubang. Gambar yang blur akan menurunkan akurasi hitungan.</li>
             <li><strong>Latar Belakang:</strong> Gunakan alas berwarna gelap atau kontras di bawah plat jika memungkinkan untuk mempertegas lubang.</li>
+            <li><strong>Koreksi Manual:</strong> Jika sistem mendeteksi noda sebagai lubang, klik pada lingkaran tersebut di canvas biru untuk menghapusnya. Gunakan tombol UNDO jika tidak sengaja menghapus.</li>
         </ul>
     </div>
 
@@ -292,6 +375,16 @@
     const canvasInput = document.getElementById('canvas-input');
     const canvasClean = document.getElementById('canvas-output-clean');
     const canvasNumbered = document.getElementById('canvas-output-numbered');
+    const btnUndo = document.getElementById('btn-undo');
+    
+    // Sliders
+    const sBright = document.getElementById('slider-bright');
+    const sContrast = document.getElementById('slider-contrast');
+    const sVibrance = document.getElementById('slider-vibrance');
+    
+    let originalImage = null;
+    let detectedHoles = []; // Simpan koordinat lubang
+    let undoStack = []; // Stack untuk menyimpan kondisi sebelum dihapus
 
     dropZone.onclick = () => fileInput.click();
     
@@ -308,38 +401,97 @@
         if (file) processFile(file);
     };
 
+    // Update listeners for sliders
+    [sBright, sContrast, sVibrance].forEach(slider => {
+        slider.oninput = () => {
+            document.getElementById('val-bright').innerText = sBright.value;
+            document.getElementById('val-contrast').innerText = sContrast.value;
+            document.getElementById('val-vibrance').innerText = sVibrance.value;
+            if (originalImage) applyFiltersAndRun();
+        };
+    });
+
+    // FITUR HAPUS: Click event pada canvas biru
+    canvasNumbered.addEventListener('mousedown', function(e) {
+        if (detectedHoles.length === 0) return;
+
+        const rect = canvasNumbered.getBoundingClientRect();
+        const scaleX = canvasNumbered.width / rect.width;
+        const scaleY = canvasNumbered.height / rect.height;
+        const mouseX = (e.clientX - rect.left) * scaleX;
+        const mouseY = (e.clientY - rect.top) * scaleY;
+
+        // Cari deteksi terdekat dalam radius tertentu (misal 15 pixel)
+        const threshold = 15;
+        const initialCount = detectedHoles.length;
+        
+        const holesToKeep = detectedHoles.filter(hole => {
+            const distance = Math.sqrt(Math.pow(hole.x - mouseX, 2) + Math.pow(hole.y - mouseY, 2));
+            return distance > threshold;
+        });
+
+        if (holesToKeep.length !== initialCount) {
+            // Simpan kondisi sebelumnya ke stack sebelum diubah
+            undoStack.push([...detectedHoles]);
+            btnUndo.disabled = false;
+            
+            detectedHoles = holesToKeep;
+            redrawResults(); // Gambar ulang tanpa deteksi yang dihapus
+        }
+    });
+
+    // FITUR UNDO
+    function undoAction() {
+        if (undoStack.length > 0) {
+            detectedHoles = undoStack.pop();
+            redrawResults();
+            if (undoStack.length === 0) btnUndo.disabled = true;
+        }
+    }
+
     function processFile(file) {
         const reader = new FileReader();
         reader.onload = (e) => {
             const img = new Image();
             img.onload = () => {
-                const maxDim = 1000;
-                let scale = Math.min(maxDim / img.width, maxDim / img.height, 1);
-                
-                canvasInput.width = img.width * scale;
-                canvasInput.height = img.height * scale;
-                canvasClean.width = canvasInput.width;
-                canvasClean.height = canvasInput.height;
-                canvasNumbered.width = canvasInput.width;
-                canvasNumbered.height = canvasInput.height;
-
-                const ctx = canvasInput.getContext('2d');
-                ctx.drawImage(img, 0, 0, canvasInput.width, canvasInput.height);
-                
-                document.getElementById('analysis-status').innerText = "ANALYZING...";
-                setTimeout(runDetection, 300);
+                originalImage = img;
+                undoStack = []; // Reset undo stack saat gambar baru
+                btnUndo.disabled = true;
+                applyFiltersAndRun();
             };
             img.src = e.target.result;
         };
         reader.readAsDataURL(file);
     }
 
+    function applyFiltersAndRun() {
+        const img = originalImage;
+        const maxDim = 1000;
+        let scale = Math.min(maxDim / img.width, maxDim / img.height, 1);
+        
+        canvasInput.width = img.width * scale;
+        canvasInput.height = img.height * scale;
+        canvasClean.width = canvasInput.width;
+        canvasClean.height = canvasInput.height;
+        canvasNumbered.width = canvasInput.width;
+        canvasNumbered.height = canvasInput.height;
+
+        const ctx = canvasInput.getContext('2d', { willReadFrequently: true });
+        
+        ctx.filter = `brightness(${100 + parseInt(sBright.value)}%) 
+                      contrast(${100 + parseInt(sContrast.value)}%) 
+                      saturate(${100 + parseInt(sVibrance.value)}%)`;
+        
+        ctx.drawImage(img, 0, 0, canvasInput.width, canvasInput.height);
+        
+        document.getElementById('analysis-status').innerText = "ANALYZING...";
+        setTimeout(runDetection, 100);
+    }
+
     function runDetection() {
         if (!cv.imread) return;
 
         let src = cv.imread(canvasInput);
-        let dstClean = src.clone();
-        let dstNumbered = src.clone();
         let gray = new cv.Mat();
         let thresh = new cv.Mat();
         let contours = new cv.MatVector();
@@ -353,7 +505,7 @@
 
         cv.findContours(thresh, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
-        let holeCount = 0;
+        detectedHoles = []; // Reset list koordinat
         for (let i = 0; i < contours.size(); ++i) {
             let cnt = contours.get(i);
             let area = cv.contourArea(cnt);
@@ -362,30 +514,48 @@
 
             if (area > 8 && area < 600) {
                 if (aspectRatio > 0.5 && aspectRatio < 1.9) {
-                    holeCount++;
-                    let center = new cv.Point(rect.x + rect.width / 2, rect.y + rect.height / 2);
-                    
-                    // Gambar lingkaran di kedua output
-                    cv.circle(dstClean, center, rect.width / 2, [34, 197, 94, 255], 1.5);
-                    cv.circle(dstNumbered, center, rect.width / 2, [56, 189, 248, 255], 1.5);
-                    
-                    // Hanya tambahkan teks di dstNumbered
-                    cv.putText(dstNumbered, holeCount.toString(), {x: rect.x, y: rect.y - 3}, 
-                               cv.FONT_HERSHEY_SIMPLEX, 0.35, [255, 255, 255, 255], 1);
+                    detectedHoles.push({
+                        x: rect.x + rect.width / 2,
+                        y: rect.y + rect.height / 2,
+                        r: rect.width / 2,
+                        bx: rect.x,
+                        by: rect.y
+                    });
                 }
             }
         }
 
+        redrawResults();
+
+        // Cleanup
+        src.delete(); gray.delete(); thresh.delete(); 
+        contours.delete(); hierarchy.delete(); M.delete();
+    }
+
+    function redrawResults() {
+        let src = cv.imread(canvasInput);
+        let dstClean = src.clone();
+        let dstNumbered = src.clone();
+
+        detectedHoles.forEach((hole, index) => {
+            let center = new cv.Point(hole.x, hole.y);
+            
+            // Gambar di canvas clean (hijau)
+            cv.circle(dstClean, center, hole.r, [34, 197, 94, 255], 1.5);
+            
+            // Gambar di canvas numbered (biru)
+            cv.circle(dstNumbered, center, hole.r, [56, 189, 248, 255], 1.5);
+            cv.putText(dstNumbered, (index + 1).toString(), {x: hole.bx, y: hole.by - 3}, 
+                       cv.FONT_HERSHEY_SIMPLEX, 0.35, [255, 255, 255, 255], 1);
+        });
+
         cv.imshow(canvasClean, dstClean);
         cv.imshow(canvasNumbered, dstNumbered);
         
-        countDisplay.innerText = holeCount;
+        countDisplay.innerText = detectedHoles.length;
         document.getElementById('analysis-status').innerText = "ANALYSIS COMPLETE";
 
-        // Memory cleanup
-        src.delete(); dstClean.delete(); dstNumbered.delete(); 
-        gray.delete(); thresh.delete(); 
-        contours.delete(); hierarchy.delete(); M.delete();
+        dstClean.delete(); dstNumbered.delete(); src.delete();
     }
 </script>
 </body>
